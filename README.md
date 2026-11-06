@@ -1,4 +1,4 @@
-# 24h — 使っていない MacBook を24時間サーバーにする
+# 24h_local — 使っていない MacBook を24時間サーバーにする
 
 MacBook（2018年・Intel・メモリ8GB・SSD 256GB）を家に置きっぱなしにして、**卓球動画編集サーバー**（[tomochi3/ai_edit_TT](https://github.com/tomochi3/ai_edit_TT)）を常時動かします。
 
@@ -25,19 +25,93 @@ iPhone ──Tailscale(VPN)──▶ MacBook（ふた開け・電源つなぎっ
 
 ---
 
-## 0. 全体の順番
+## 0. 初期化した Mac に必要なものを入れる
 
-1. macOS を更新し、ai_edit_TT の README「**初期化したMacBookを自宅サーバーにする**」の手順1〜5を実行
-   （Homebrew・Python・ffmpeg・gh・Tailscale・Codex・Claude のインストールとログインまで）
+初期化直後の macOS には `pip` も `python3`（まともに使えるもの）も入っていません。ターミナルで上から順に実行してください。
+git が入っていれば手順0-1は済んでいます。
+
+### 0-1. Xcode コマンドラインツール（git・コンパイラ）
+
+```bash
+xcode-select -p || xcode-select --install
+```
+
+パスが表示されれば入っています。ダイアログが出たら「インストール」を押し、終わってから次へ。
+
+### 0-2. Homebrew（ほかのソフトを入れる道具）
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+途中で Mac のログインパスワードと Enter を求められます。終わったら、次のターミナルでも `brew` が使えるように登録します（Intel Mac は `/usr/local`、Apple シリコンは `/opt/homebrew`）:
+
+```bash
+BREW=$(ls /opt/homebrew/bin/brew /usr/local/bin/brew 2>/dev/null | head -1); echo "eval \"\$($BREW shellenv)\"" >> ~/.zprofile; eval "$($BREW shellenv)"; brew --version
+```
+
+### 0-3. Python（pip 付き）・ffmpeg・gh
+
+```bash
+brew install python@3.13 ffmpeg gh
+```
+
+```bash
+python3.13 --version && python3.13 -m pip --version && ffmpeg -version | head -1 && gh --version | head -1
+```
+
+- Homebrew の Python では、コマンド名は `pip` ではなく **`pip3`**（または `python3.13 -m pip`）です
+- Homebrew の Python に直接 `pip install` するとエラー（externally-managed-environment）になります。ai_edit_TT は下の 0-6 で作る仮想環境（`.venv`）に入れてください
+
+### 0-4. Tailscale・Codex・Claude Code
+
+```bash
+brew install --cask tailscale-app codex claude-code
+```
+
+`tailscale-app` が見つからないと言われたら、App Store で「Tailscale」を入れてください。
+
+### 0-5. ログイン
+
+```bash
+gh auth login
+```
+
+「GitHub.com」→「HTTPS」→「Login with a web browser」を選び、表示されたコードをブラウザに入力します。
+
+```bash
+codex login
+```
+
+```bash
+claude
+```
+
+Claude Code は起動すると最初にログインを聞かれます。月額プランのアカウントでログインしたら `/exit` で終了。
+Tailscale はアプリケーションフォルダから起動してログインし、スマホにも同じアカウントで Tailscale を入れます。
+
+### 0-6. リポジトリを取ってくる・ai_edit_TT の Python 環境を作る
+
+```bash
+mkdir -p "$HOME/Apps" && cd "$HOME/Apps" && gh repo clone tomochi3/24h_local && gh repo clone tomochi3/ai_edit_TT
+```
+
+```bash
+cd "$HOME/Apps/ai_edit_TT" && python3.13 -m venv .venv && .venv/bin/python -m pip install --upgrade pip
+```
+
+この後の依存パッケージのインストールは ai_edit_TT の README のとおりに進めます。そこに `pip install ...` と書いてあれば、**`.venv/bin/python -m pip install ...`** に読み替えてください（`source .venv/bin/activate` してからなら `pip` のままで動きます）。
+
+### 全体の順番
+
+1. 上の 0-1〜0-6
 2. このリポジトリで「Mac本体の常時稼働設定」（下の1）
 3. ai_edit_TT の `install-service`（下の2、ai_edit_TT README の手順6）
 
 ## 1. Mac本体の常時稼働設定
 
 ```bash
-mkdir -p "$HOME/Apps" && cd "$HOME/Apps"
-gh repo clone tomochi3/24h
-cd 24h
+cd "$HOME/Apps/24h_local"
 NTFY_TOPIC=ここに推測されにくいトピック名 bash mac/setup_server.sh
 ```
 
