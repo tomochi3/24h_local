@@ -20,6 +20,11 @@ class Config:
     include_retweets: bool = False
     include_images: bool = True
     skip_empty: bool = True               # 新しい投稿が0件ならPDFを作らない
+    make_pdf: bool = True                 # PDFを作る
+    site_repo: Path | None = None         # 静的サイトを置くGitリポジトリのclone先（例: ~/Apps/smallx）
+    site_title: str = "smallx"
+    site_push: bool = True                # 更新したら git push する
+    site_url: str = ""                    # 公開URL（通知のリンク先。例: https://tomochi3.github.io/smallx/）
     run_hour: int = 7                     # 毎日何時に作るか（Macのローカル時刻）
     run_minute: int = 0
     ntfy_topic: str = ""                  # 空なら通知しない
@@ -50,7 +55,7 @@ class Config:
                 "環境変数 X_BEARER_TOKEN を設定してください。") from None
 
 
-_PATH_KEYS = {"output_dir", "token_file"}
+_PATH_KEYS = {"output_dir", "token_file", "site_repo"}
 
 
 def load_config(path: Path | str | None = None) -> Config:

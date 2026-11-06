@@ -4,13 +4,13 @@ MacBook（2018年・Intel・メモリ8GB・SSD 256GB）を家に置きっぱな�
 
 | サービス | 何をする | いつ動く | スマホから |
 |---|---|---|---|
-| ① **xdigest**（このリポジトリ） | X の指定アカウント（岡野原大輔さんなど）の投稿を集め、原文のままPDFにする | 毎朝7:00に1回（数分） | `http://<Mac>:8766` でPDF一覧・ntfy通知 |
+| ① **xdigest**（このリポジトリ） | X の指定アカウント（岡野原大輔さんなど）の投稿を集め、原文のまま **Webサイト（[tomochi3/smallx](https://github.com/tomochi3/smallx) → GitHub Pages）** とPDFにする | 毎朝7:00に1回（数分） | <https://tomochi3.github.io/smallx/>（どのPCからでも）・PDF一覧 `http://<Mac>:8766` |
 | ② **卓球動画編集**（[tomochi3/ai_edit_TT](https://github.com/tomochi3/ai_edit_TT)） | スマホから送った試合動画をAIでカット・得点判定し、スマホで選別・書き出し | 常時待機、動画が来たら処理 | `http://<Mac>:8765/?key=...` |
 
 ```
 iPhone ──Tailscale(VPN)──▶ MacBook（ふた開け・電源つなぎっぱなし）
                             ├─ launchd: com.pingpong-editor.app  :8765  ← ai_edit_TT
-                            ├─ launchd: com.xdigest.run   毎朝7:00 → X API → PDF
+                            ├─ launchd: com.xdigest.run   毎朝7:00 → X API → smallx に git push（GitHub Pages）/ PDF
                             ├─ launchd: com.xdigest.serve :8766  ← PDF閲覧
                             └─ launchd: com.macserver.healthcheck 1時間ごと（容量・停止・温度 → ntfy）
 ```
@@ -53,7 +53,7 @@ NTFY_TOPIC=ここに推測されにくいトピック名 bash mac/setup_server.s
 - **自動ログイン**: launchd の LaunchAgent はログイン後に動きます。FileVault がオンだと自動ログインできないので、停電・再起動のあとは一度ログインが必要です（Tailscale も同様）
 - スマホの ntfy アプリで `NTFY_TOPIC` と同じトピックを購読
 
-## 2. ① X ダイジェスト PDF（xdigest）
+## 2. ① X ダイジェスト（xdigest）: smallx サイト + PDF
 
 ### 2-1. X API の準備（初回だけ）
 
@@ -95,7 +95,26 @@ open -e ~/.config/xdigest/config.toml   # accounts に読みたいアカウン�
 | `ntfy_topic` | 空 | できたらスマホに通知 |
 | `public_url` | 空 | 通知のリンク先。例 `http://macbook:8766`（Tailscale名） |
 
-### 2-3. 試しに1回作る → 自動化
+### 2-3. smallx（Webサイト）の準備
+
+投稿は原文のまま [tomochi3/smallx](https://github.com/tomochi3/smallx) に静的サイトとして push され、GitHub Pages で公開されます。
+
+1. GitHub の smallx → **Settings → Pages** → Source: `Deploy from a branch`、Branch: `main` / `/ (root)` → Save
+   → 数分後に <https://tomochi3.github.io/smallx/> で見られます
+2. MacBook に clone（push には ai_edit_TT の手順で済ませた `gh auth login` / `gh auth setup-git` を使います）:
+
+```bash
+gh repo clone tomochi3/smallx "$HOME/Apps/smallx"
+```
+
+3. `config.toml` の `site_repo = "~/Apps/smallx"` を確認
+
+サイトの構成: `index.html`（最新7日・日付ごと）、`u/<アカウント>.html`（アカウント別・最新300件）、`m/YYYY-MM.html`（月別アーカイブ）。
+投稿データは `data/posts/YYYY-MM.json` に貯まり、毎回ここから全ページを作り直します。スマホ・PCどちらでも読みやすいレイアウトで、ダークモードにも対応しています。
+
+> **注意**: smallx は公開リポジトリなので、誰でも見られます。検索エンジンには載らないよう `noindex` と `robots.txt` を入れていますが、URLを知っていれば見られます。他人の投稿を丸ごと転載するので、X の利用規約や投稿者の著作権の点から、URLは広めず個人用にとどめてください。
+
+### 2-4. 試しに1回作る → 自動化
 
 ```bash
 cd "$HOME/Apps/24h"
@@ -112,7 +131,7 @@ PDFの中身（A5サイズ・スマホで読みやすい大きさ）:
 1. **アカウント一覧**（各件数）
 2. **アカウントごとの投稿（原文のまま・時系列）** — 本文（長文ポストも全文・短縮URLは元に戻す）、画像、引用ポスト、♥/RT数、「Xで開く」リンク
 
-### 2-4. 管理
+### 2-5. 管理
 
 ```bash
 cd "$HOME/Apps/24h"
@@ -125,6 +144,7 @@ git pull && .venv/bin/pip install -r requirements.txt && .venv/bin/python -m xdi
 
 - Mac がスリープ・電源オフで7:00を逃した場合は、次に起きたときに1回実行されます。
 - 新しい投稿が0件の日はPDFを作りません（`skip_empty = false` で毎日作る）。
+- `git push` に失敗しても commit は smallx の clone に残り、次回まとめて push されます。
 
 ## 3. ② 卓球動画編集サーバー（ai_edit_TT）
 

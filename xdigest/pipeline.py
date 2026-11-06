@@ -1,4 +1,4 @@
-"""1回分の処理: 取得 → PDF → 通知。"""
+"""1回分の処理: 取得 → サイト更新（git push）/ PDF → 通知。"""
 from __future__ import annotations
 
 import json
@@ -33,7 +33,9 @@ def notify(cfg: Config, title: str, message: str, *, pdf: Path | None = None, op
         return
     url = f"{cfg.ntfy_server.rstrip('/')}/{cfg.ntfy_topic}"
     headers = {"Title": title.encode("utf-8"), "Tags": "newspaper"}
-    if cfg.public_url and pdf:
+    if cfg.site_url:
+        headers["Click"] = cfg.site_url
+    elif cfg.public_url and pdf:
         headers["Click"] = f"{cfg.public_url.rstrip('/')}/pdf/{pdf.name}"
     data = message.encode("utf-8")
     if pdf and cfg.ntfy_attach_pdf and pdf.suffix == ".pdf":
@@ -88,24 +90,28 @@ def run(cfg: Config, *, client: XClient | None = None, now: datetime | None = No
     last_run = state.get("last_run")
     start = datetime.fromisoformat(last_run) if last_run else None
 
-    if not posts and cfg.skip_empty:
-        print("新しい投稿がないのでPDFは作りません")
-        if errors:
-            notify(cfg, "X ダイジェスト: エラー", "\n".join(errors))
-        if not dry_run:
-            state["last_run"] = now.isoformat()
-            save_state(cfg.state_file, state)
-        return None
+    site_msg = ""
+    if cfg.site_repo:
+        from .site import publish
+        site_msg = publish(cfg.site_repo, posts, cfg.accounts, now=now, site_title=cfg.site_title,
+                           push=cfg.site_push and not dry_run)
+        print(site_msg)
+        if "失敗" in site_msg or "ではありません" in site_msg:
+            errors.append(site_msg)
 
-    html_text = build_html(posts, cfg.accounts, start=start, end=now, include_images=cfg.include_images)
-    out = write_pdf(html_text, cfg.pdf_dir / f"{now.astimezone(JST):%Y-%m-%d_%H%M}.pdf")
-    print(f"保存しました: {out}")
+    out = None
+    if posts or not cfg.skip_empty:
+        if cfg.make_pdf:
+            html_text = build_html(posts, cfg.accounts, start=start, end=now, include_images=cfg.include_images)
+            out = write_pdf(html_text, cfg.pdf_dir / f"{now.astimezone(JST):%Y-%m-%d_%H%M}.pdf")
+            print(f"保存しました: {out}")
+    else:
+        print("新しい投稿はありません")
 
     if not dry_run:
         state["last_run"] = now.isoformat()
         save_state(cfg.state_file, state)
-    msg = f"{len(posts)}件の投稿"
-    if errors:
-        msg += "\n" + "\n".join(errors)
-    notify(cfg, f"X ダイジェスト {now.astimezone(JST):%m/%d}", msg, pdf=out)
+    if posts or errors:
+        msg = f"{len(posts)}件の投稿" + ("\n" + "\n".join(errors) if errors else "")
+        notify(cfg, f"X ダイジェスト {now.astimezone(JST):%m/%d}", msg, pdf=out)
     return out

@@ -14,6 +14,12 @@ include_replies = false
 include_retweets = false
 include_images = true
 skip_empty = true
+make_pdf = true                   # PDFも作る（サイトだけでよければ false）
+
+# 原文のまま静的サイトにして GitHub に push する（GitHub Pages で公開）
+site_repo = "~/Apps/smallx"       # tomochi3/smallx の clone 先。空にするとサイトは作らない
+site_title = "smallx"
+site_url = "https://tomochi3.github.io/smallx/"
 
 # スマホ通知（任意）: ntfyアプリで同じトピック名を購読します。推測されにくい名前にしてください
 ntfy_topic = ""

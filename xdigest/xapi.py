@@ -42,6 +42,21 @@ class Post:
     quoted: "Post | None" = None
     is_reply: bool = False
 
+    def to_json(self) -> dict:
+        d = {k: getattr(self, k) for k in ("id", "username", "text", "url", "likes", "reposts",
+                                             "replies", "quotes", "images", "is_reply")}
+        d["created_at"] = self.created_at.isoformat()
+        d["quoted"] = self.quoted.to_json() if self.quoted else None
+        return d
+
+    @classmethod
+    def from_json(cls, d: dict) -> "Post":
+        d = dict(d)
+        d["created_at"] = datetime.fromisoformat(d["created_at"])
+        d["quoted"] = cls.from_json(d["quoted"]) if d.get("quoted") else None
+        known = set(cls.__dataclass_fields__)
+        return cls(**{k: v for k, v in d.items() if k in known})
+
 
 def _get(path: str, params: dict, token: str, opener=urllib.request.urlopen) -> dict:
     url = f"{API}{path}?{urllib.parse.urlencode(params)}"

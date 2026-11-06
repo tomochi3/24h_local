@@ -140,3 +140,57 @@ def test_serve_requires_key(tmp_path):
             opener.open(base + "/pdf/..%2Fstate.json?key=secret")
     finally:
         srv.shutdown()
+
+
+def _git(*args, cwd):
+    import subprocess
+    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True)
+
+
+def test_site_publish_merges_builds_and_pushes(tmp_path):
+    import subprocess
+    from xdigest import site
+
+    remote = tmp_path / "remote.git"
+    _git("init", "-q", "--bare", "-b", "main", str(remote), cwd=tmp_path)
+    repo = tmp_path / "smallx"
+    _git("clone", "-q", str(remote), str(repo), cwd=tmp_path)
+    _git("config", "user.email", "t@example.com", cwd=repo)
+    _git("config", "user.name", "t", cwd=repo)
+    _git("checkout", "-q", "-b", "main", cwd=repo)
+
+    posts = build_posts(TIMELINE, "hillbig")
+    msg = site.publish(repo, posts, ["hillbig", "other"], now=NOW)
+    assert "+2件" in msg, msg
+    data = json.loads((repo / "data/posts/2026-11.json").read_text())
+    assert [d["id"] for d in data] == ["201", "200"]
+    index = (repo / "index.html").read_text()
+    assert "長文の全文 &lt;script&gt;" in index and "<script>" not in index
+    assert 'href="u/hillbig.html"' in index and "noindex" in index
+    assert (repo / "u/hillbig.html").exists() and (repo / "u/other.html").exists()
+    assert "引用元" in (repo / "m/2026-11.html").read_text()
+    log = subprocess.run(["git", "log", "--oneline", "main"], cwd=remote, capture_output=True, text=True).stdout
+    assert "(+2 posts)" in log
+
+    # 同じ投稿をもう一度渡しても重複しない（いいね数は更新）
+    posts[0].likes = 999
+    msg = site.publish(repo, posts, ["hillbig"], now=NOW)
+    data = json.loads((repo / "data/posts/2026-11.json").read_text())
+    assert len(data) == 2 and data[1]["likes"] == 999
+    assert "+0件" in msg
+
+
+def test_post_json_roundtrip():
+    from xdigest.xapi import Post
+    p = build_posts(TIMELINE, "hillbig")[0]
+    q = Post.from_json(json.loads(json.dumps(p.to_json())))
+    assert q == p
+
+
+def test_run_with_site_and_no_pdf(tmp_path, monkeypatch):
+    calls = {}
+    import xdigest.site as site
+    monkeypatch.setattr(site, "publish", lambda repo, posts, accounts, **k: calls.setdefault("n", len(posts)) and "サイトを更新しました")
+    cfg = Config(accounts=["hillbig"], output_dir=tmp_path / "out", make_pdf=False, site_repo=tmp_path / "s")
+    assert pipeline.run(cfg, client=XClient("t", opener=FakeX()), now=NOW) is None
+    assert calls["n"] == 2 and not (tmp_path / "out" / "pdf").exists()
