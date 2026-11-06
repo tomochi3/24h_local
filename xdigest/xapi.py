@@ -42,11 +42,6 @@ class Post:
     quoted: "Post | None" = None
     is_reply: bool = False
 
-    def to_dict(self) -> dict:
-        return {"id": self.id, "username": self.username, "created_at": self.created_at.isoformat(),
-                "text": self.text, "likes": self.likes, "reposts": self.reposts,
-                "quoted": self.quoted.to_dict() if self.quoted else None}
-
 
 def _get(path: str, params: dict, token: str, opener=urllib.request.urlopen) -> dict:
     url = f"{API}{path}?{urllib.parse.urlencode(params)}"

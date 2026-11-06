@@ -20,9 +20,6 @@ class Config:
     include_retweets: bool = False
     include_images: bool = True
     skip_empty: bool = True               # 新しい投稿が0件ならPDFを作らない
-    summarizer: str = "auto"              # auto / codex / claude / none
-    claude_model: str = "sonnet"
-    codex_model: str = ""
     run_hour: int = 7                     # 毎日何時に作るか（Macのローカル時刻）
     run_minute: int = 0
     ntfy_topic: str = ""                  # 空なら通知しない
@@ -74,6 +71,4 @@ def load_config(path: Path | str | None = None) -> Config:
     if not accounts:
         raise SystemExit("accounts に1つ以上のXアカウント（@なしのユーザー名）を書いてください。")
     kwargs["accounts"] = accounts
-    if kwargs.get("summarizer", "auto") not in ("auto", "codex", "claude", "none"):
-        raise SystemExit("summarizer は auto / codex / claude / none のどれかにしてください。")
     return Config(**kwargs, extra=extra)

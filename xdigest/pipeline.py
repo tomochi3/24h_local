@@ -1,4 +1,4 @@
-"""1回分の処理: 取得 → 要約 → PDF → 通知。"""
+"""1回分の処理: 取得 → PDF → 通知。"""
 from __future__ import annotations
 
 import json
@@ -9,7 +9,6 @@ from pathlib import Path
 
 from .config import Config
 from .render import JST, build_html, write_pdf
-from .summarize import summarize
 from .xapi import XApiError, XClient
 
 POST_PRICE_USD = 0.005   # 他人の投稿1件あたりの目安（X API 従量課金）。正確な単価は developer portal で確認
@@ -98,15 +97,14 @@ def run(cfg: Config, *, client: XClient | None = None, now: datetime | None = No
             save_state(cfg.state_file, state)
         return None
 
-    summary = summarize(posts, cfg.summarizer, claude_model=cfg.claude_model, codex_model=cfg.codex_model)
-    html_text = build_html(posts, cfg.accounts, summary, start=start, end=now, include_images=cfg.include_images)
+    html_text = build_html(posts, cfg.accounts, start=start, end=now, include_images=cfg.include_images)
     out = write_pdf(html_text, cfg.pdf_dir / f"{now.astimezone(JST):%Y-%m-%d_%H%M}.pdf")
     print(f"保存しました: {out}")
 
     if not dry_run:
         state["last_run"] = now.isoformat()
         save_state(cfg.state_file, state)
-    msg = f"{len(posts)}件の投稿" + ("（要約あり）" if summary else "（要約なし）")
+    msg = f"{len(posts)}件の投稿"
     if errors:
         msg += "\n" + "\n".join(errors)
     notify(cfg, f"X ダイジェスト {now.astimezone(JST):%m/%d}", msg, pdf=out)

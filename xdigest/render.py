@@ -1,4 +1,4 @@
-"""投稿と要約を、スマホでも読みやすいPDFにする（HTML → WeasyPrint）。"""
+"""投稿を原文のまま、スマホでも読みやすいPDFにする（HTML → WeasyPrint）。"""
 from __future__ import annotations
 
 import html
@@ -24,11 +24,7 @@ h2 { font-size: 13pt; border-left: 4px solid #1d6fd8; padding-left: 3mm; margin:
      page-break-after: avoid; }
 h3 { font-size: 11pt; margin: 4mm 0 1mm; page-break-after: avoid; }
 .meta { color: #666; font-size: 8.5pt; }
-.overview { background: #f1f6fd; border-radius: 3mm; padding: 4mm; margin: 3mm 0; }
-.topic { margin-bottom: 3mm; page-break-inside: avoid; }
-.refs { font-size: 8pt; }
 .account { page-break-before: always; }
-.acc-summary { background: #f6f6f6; border-radius: 2mm; padding: 3mm; margin-bottom: 3mm; }
 .post { border-bottom: 1px solid #e3e3e3; padding: 2.5mm 0; page-break-inside: avoid; }
 .post .text { white-space: pre-wrap; word-wrap: break-word; }
 .post .foot { color: #777; font-size: 8pt; margin-top: 1mm; }
@@ -70,7 +66,7 @@ def _post_html(p: Post, include_images: bool) -> str:
     return "".join(parts)
 
 
-def build_html(posts: list[Post], accounts: list[str], summary: dict | None, *,
+def build_html(posts: list[Post], accounts: list[str], *,
                start: datetime | None, end: datetime, include_images: bool = True) -> str:
     by_user: dict[str, list[Post]] = defaultdict(list)
     for p in posts:
@@ -79,17 +75,6 @@ def build_html(posts: list[Post], accounts: list[str], summary: dict | None, *,
     body = [f"<h1>X ダイジェスト {end.astimezone(JST):%Y/%m/%d}</h1>",
             f'<div class="meta">{html.escape(period)} · {len(accounts)}アカウント · {len(posts)}件の投稿</div>']
 
-    if summary:
-        body.append("<h2>今日のまとめ</h2>")
-        body.append(f'<div class="overview">{html.escape(summary["overview"])}</div>')
-        known_ids = {p.id for p in posts}
-        for t in summary.get("topics", []):
-            refs = [i for i in t.get("post_ids", []) if i in known_ids]
-            ref_html = " ".join(f'<a href="#p{html.escape(i)}">[{n}]</a>' for n, i in enumerate(refs, 1))
-            body.append(f'<div class="topic"><h3>{html.escape(t["title"])}</h3>'
-                        f'<div>{html.escape(t.get("summary", ""))}</div>'
-                        f'<div class="refs">{ref_html}</div></div>')
-
     body.append('<h2>アカウント</h2><ul class="toc">')
     for name in accounts:
         n = len(by_user.get(name.lower(), []))
@@ -97,14 +82,10 @@ def build_html(posts: list[Post], accounts: list[str], summary: dict | None, *,
                     f'<span class="meta">{n}件</span></li>')
     body.append("</ul>")
 
-    acc_summaries = {a["username"].lstrip("@").lower(): a.get("summary", "")
-                     for a in (summary or {}).get("accounts", [])}
     for name in accounts:
         items = sorted(by_user.get(name.lower(), []), key=lambda p: p.created_at)
         body.append(f'<section class="account" id="u-{html.escape(name.lower())}">'
                     f'<h2>@{html.escape(name)} <span class="meta">{len(items)}件</span></h2>')
-        if acc_summaries.get(name.lower()):
-            body.append(f'<div class="acc-summary">{html.escape(acc_summaries[name.lower()])}</div>')
         if not items:
             body.append('<p class="empty">この期間の投稿はありません。</p>')
         body.extend(_post_html(p, include_images) for p in items)

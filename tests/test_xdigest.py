@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from xdigest import pipeline, summarize
+from xdigest import pipeline
 from xdigest.config import Config, load_config
 from xdigest.render import build_html
 from xdigest.service import plists
@@ -71,7 +71,7 @@ def test_build_posts_images_and_quotes():
 
 
 def test_run_uses_cached_ids_and_since_id(tmp_path):
-    cfg = Config(accounts=["hillbig"], output_dir=tmp_path, summarizer="none")
+    cfg = Config(accounts=["hillbig"], output_dir=tmp_path)
     fake = FakeX()
     out = pipeline.run(cfg, client=XClient("t", opener=fake), now=NOW)
     assert out and out.exists()
@@ -88,35 +88,13 @@ def test_run_uses_cached_ids_and_since_id(tmp_path):
     assert second["since_id"] == ["201"] and "start_time" not in second
 
 
-def test_html_escapes_and_links_topics():
+def test_html_is_raw_and_escaped():
     posts = build_posts(TIMELINE, "hillbig")
-    summary = {"overview": "まとめ<b>", "topics": [{"title": "論文", "summary": "s", "post_ids": ["200", "999"]}],
-               "accounts": [{"username": "@hillbig", "summary": "論文紹介"}]}
-    doc = build_html(posts, ["hillbig", "nobody"], summary, start=None, end=NOW)
+    doc = build_html(posts, ["hillbig", "nobody"], start=None, end=NOW)
     assert "<script>" not in doc and "&lt;script&gt;" in doc
-    assert "まとめ&lt;b&gt;" in doc
-    assert 'href="#p200"' in doc and "#p999" not in doc
-    assert "論文紹介" in doc and "この期間の投稿はありません" in doc
+    assert "長文の全文" in doc and "まとめ" not in doc
+    assert "この期間の投稿はありません" in doc
     assert '<a href="https://arxiv.org/abs/2611.00001">' in doc
-
-
-def test_summarize_fallback_and_none(monkeypatch):
-    posts = build_posts(TIMELINE, "hillbig")
-    assert summarize.summarize(posts, "none") is None
-
-    def boom(*a, **k):
-        raise FileNotFoundError
-
-    monkeypatch.setattr(summarize, "summarize_codex", boom)
-    monkeypatch.setattr(summarize, "summarize_claude", lambda p, m: {"overview": "ok", "topics": [], "accounts": []})
-    assert summarize.summarize(posts, "auto", log=lambda *a: None)["overview"] == "ok"
-
-
-def test_child_env_strips_api_keys(monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
-    monkeypatch.setenv("OPENAI_API_KEY", "y")
-    env = summarize._child_env()
-    assert "ANTHROPIC_API_KEY" not in env and "OPENAI_API_KEY" not in env
 
 
 def test_load_config(tmp_path):

@@ -15,11 +15,6 @@ include_retweets = false
 include_images = true
 skip_empty = true
 
-# 要約: auto（Codex→Claudeの順）/ codex / claude / none
-# どちらも月額プランのログインを使います（別料金のAPIキーは使いません）
-summarizer = "auto"
-claude_model = "sonnet"
-
 # スマホ通知（任意）: ntfyアプリで同じトピック名を購読します。推測されにくい名前にしてください
 ntfy_topic = ""
 ntfy_attach_pdf = false

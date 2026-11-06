@@ -4,18 +4,18 @@ MacBook（2018年・Intel・メモリ8GB・SSD 256GB）を家に置きっぱな�
 
 | サービス | 何をする | いつ動く | スマホから |
 |---|---|---|---|
-| ① **xdigest**（このリポジトリ） | X の指定アカウント（岡野原大輔さんなど）の投稿を集め、AIで要約してPDFにする | 毎朝7:00に1回（数分） | `http://<Mac>:8766` でPDF一覧・ntfy通知 |
+| ① **xdigest**（このリポジトリ） | X の指定アカウント（岡野原大輔さんなど）の投稿を集め、原文のままPDFにする | 毎朝7:00に1回（数分） | `http://<Mac>:8766` でPDF一覧・ntfy通知 |
 | ② **卓球動画編集**（[tomochi3/ai_edit_TT](https://github.com/tomochi3/ai_edit_TT)） | スマホから送った試合動画をAIでカット・得点判定し、スマホで選別・書き出し | 常時待機、動画が来たら処理 | `http://<Mac>:8765/?key=...` |
 
 ```
 iPhone ──Tailscale(VPN)──▶ MacBook（ふた開け・電源つなぎっぱなし）
                             ├─ launchd: com.pingpong-editor.app  :8765  ← ai_edit_TT
-                            ├─ launchd: com.xdigest.run   毎朝7:00 → X API → Codex/Claude要約 → PDF
+                            ├─ launchd: com.xdigest.run   毎朝7:00 → X API → PDF
                             ├─ launchd: com.xdigest.serve :8766  ← PDF閲覧
                             └─ launchd: com.macserver.healthcheck 1時間ごと（容量・停止・温度 → ntfy）
 ```
 
-- AIの要約・判定は **Codex / Claude Code の月額プランのログイン** を使います（別料金のAPIキーは子プロセスに渡しません。ai_edit_TT と同じ方針）。
+- 卓球動画のAI判定は **Codex / Claude Code の月額プランのログイン** を使います（ai_edit_TT の方針）。xdigest はAIを使いません。
 - 料金が別にかかるのは **X API だけ**（従量課金、後述）。
 - 外から使うときは Tailscale のみ。ルーターのポート開放はしません。
 - 8GBメモリでも2つ同時に問題なく動きます。重いのは ai_edit_TT の動画書き出しだけで、xdigest は1日1回数分です。
@@ -90,7 +90,6 @@ open -e ~/.config/xdigest/config.toml   # accounts に読みたいアカウン�
 |---|---|---|
 | `accounts` | `["hillbig"]` | @なしのユーザー名 |
 | `run_hour` / `run_minute` | 7 / 0 | 毎日作る時刻 |
-| `summarizer` | `auto` | `auto`（Codex→Claude）/ `codex` / `claude` / `none` |
 | `include_replies` / `include_retweets` | false | 返信・リポストも入れるか |
 | `max_posts_per_account` | 40 | 1回あたりの上限（＝料金の上限） |
 | `ntfy_topic` | 空 | できたらスマホに通知 |
@@ -105,15 +104,13 @@ open ~/XDigest/pdf
 .venv/bin/python -m xdigest install        # 毎朝の実行と閲覧サーバーを launchd に登録
 ```
 
-`install` は登録時の PATH を保存するので、`codex` / `claude` が使えるターミナルで実行してください。
 表示された `http://<Mac名>:8766/?key=...` をスマホの Safari で開き、「ホーム画面に追加」しておくと便利です。
 外出先では、ホスト部分を Tailscale の名前か `100.x.x.x` に置き換えます。
 
 PDFの中身（A5サイズ・スマホで読みやすい大きさ）:
 
-1. **今日のまとめ** — 全体の要点と話題別の要約（根拠の投稿へのリンク付き）
-2. **アカウント一覧**
-3. **アカウントごとの投稿** — その人の要約、本文（長文ポストも全文・短縮URLは元に戻す）、画像、引用ポスト、♥/RT数、「Xで開く」リンク
+1. **アカウント一覧**（各件数）
+2. **アカウントごとの投稿（原文のまま・時系列）** — 本文（長文ポストも全文・短縮URLは元に戻す）、画像、引用ポスト、♥/RT数、「Xで開く」リンク
 
 ### 2-4. 管理
 
@@ -128,7 +125,6 @@ git pull && .venv/bin/pip install -r requirements.txt && .venv/bin/python -m xdi
 
 - Mac がスリープ・電源オフで7:00を逃した場合は、次に起きたときに1回実行されます。
 - 新しい投稿が0件の日はPDFを作りません（`skip_empty = false` で毎日作る）。
-- 要約に失敗しても、要約なしでPDFは作ります。
 
 ## 3. ② 卓球動画編集サーバー（ai_edit_TT）
 
