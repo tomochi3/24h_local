@@ -1,0 +1,28 @@
+# ~/.config/xdigest/config.toml にコピーして使います。
+# 読みたいXアカウント（@なしのユーザー名）。増やすほどX APIの料金が増えます。
+accounts = [
+  "hillbig",        # 岡野原大輔さん（綴りはXのプロフィールで確認してください）
+  # "another_account",
+]
+
+output_dir = "~/XDigest"          # PDF・状態ファイルの保存先（書類/デスクトップの中は避ける）
+run_hour = 7                      # 毎日 7:00 に作る
+run_minute = 0
+lookback_hours = 24               # 初回だけ、何時間前までさかのぼるか
+max_posts_per_account = 40        # 1回あたりの上限（課金の上限にもなる）
+include_replies = false
+include_retweets = false
+include_images = true
+skip_empty = true
+
+# 要約: auto（Codex→Claudeの順）/ codex / claude / none
+# どちらも月額プランのログインを使います（別料金のAPIキーは使いません）
+summarizer = "auto"
+claude_model = "sonnet"
+
+# スマホ通知（任意）: ntfyアプリで同じトピック名を購読します。推測されにくい名前にしてください
+ntfy_topic = ""
+ntfy_attach_pdf = false
+# 通知のリンク先・閲覧URL。Tailscale を使うなら http://<MacのTailscale名>:8766
+public_url = ""
+serve_port = 8766
