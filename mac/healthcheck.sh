@@ -13,7 +13,8 @@ mkdir -p "$STATE"
 alerts=()
 notes=()
 
-free_kb() { df -k / | awk 'NR==2 {print $4}'; }
+# 指定したパスがあるディスクの空き容量（KB）
+free_kb() { df -k "${1:-/}" | awk 'NR==2 {print $4}'; }
 
 # ファイルの「最終更新時刻<TAB>サイズ<TAB>パス」を出す（macOS / Linux 両対応）
 list_videos() {
@@ -28,30 +29,49 @@ list_videos() {
   fi
 }
 
+# 前回までに消したのに、まだ空きとして戻ってきていない量（KB）。
+# macOS はローカルスナップショットのせいで消してもすぐ空きが増えないことがあるため、
+# これを空きとみなして、毎時間同じ不足分を何度も消してしまうのを防ぐ。24時間たったら忘れる。
+PENDING="$STATE/cleanup.pending"   # 中身: 記録した時刻(epoch) 記録時の空き(KB) 未回収の量(KB)
+pending_kb() {
+  local now=$(date +%s) at=0 free_then=0 pending=0 gained
+  [ -f "$PENDING" ] && read -r at free_then pending < "$PENDING"
+  if [ $((now - ${at:-0})) -ge 86400 ]; then echo 0; return; fi
+  gained=$(( $1 - free_then ))
+  [ "$gained" -gt 0 ] && pending=$((pending - gained))
+  [ "$pending" -lt 0 ] && pending=0
+  echo "$pending"
+}
+
 cleanup_videos() {
   [ "$CLEANUP" = "1" ] && [ -d "$VIDEO_DIR" ] || return 0
-  local start_kb want_kb free n=0 freed=0 mtime size path
-  start_kb=$(free_kb)
-  [ "$start_kb" -ge $((CLEANUP_FREE_GB * 1024 * 1024)) ] && return 0
+  local start_kb pending want_kb free n=0 freed=0 mtime size path
+  # 動画フォルダがあるディスクで測る（外付けSSDに置いた場合も正しく判断する）
+  start_kb=$(free_kb "$VIDEO_DIR")
+  pending=$(pending_kb "$start_kb")
+  [ $((start_kb + pending)) -ge $((CLEANUP_FREE_GB * 1024 * 1024)) ] && return 0
   want_kb=$((CLEANUP_TARGET_GB * 1024 * 1024))
   free=$start_kb
   while IFS=$'\t' read -r mtime size path; do
-    # 空きが戻ったら終了。macOS はスナップショットのせいで消してもすぐ空きが増えないことがあるので、
-    # 消したサイズの合計が足りた時点でも止める（消しすぎ防止）
+    # 空きが戻ったら終了。空きがすぐ増えなくても、消した量（前回までの未回収分を含む）が足りた時点で止める
     [ "$free" -ge "$want_kb" ] && break
-    [ $((start_kb + freed)) -ge "$want_kb" ] && break
+    [ $((start_kb + pending + freed)) -ge "$want_kb" ] && break
     [ -f "$path" ] || continue
     # 開かれている（書き込み中・再生中の）ファイルは飛ばす
     if command -v lsof >/dev/null && lsof -- "$path" >/dev/null 2>&1; then continue; fi
     rm -f -- "$path" || continue
     echo "$(date '+%F %T') deleted ${path} ($((size / 1024 / 1024))MB)" >> "$STATE/cleanup.log"
     n=$((n + 1)); freed=$((freed + size / 1024))
-    free=$(free_kb)
+    free=$(free_kb "$VIDEO_DIR")
   done < <(list_videos 2>/dev/null | sort -n)
-  [ "$n" -eq 0 ] && return 0
-  notes+=("古い動画を${n}本（$((freed / 1024 / 1024))GB分）消しました。空きは $((free / 1024 / 1024))GB です（記録: $STATE/cleanup.log）")
-  [ $((start_kb + freed)) -lt "$want_kb" ] && \
-    alerts+=("古い動画を消しても空きが $((free / 1024 / 1024))GB しかありません（${CLEANUP_MIN_AGE_DAYS}日以内の動画は残しています）")
+  if [ "$n" -gt 0 ]; then
+    local unreclaimed=$((pending + freed - (free - start_kb)))
+    [ "$unreclaimed" -lt 0 ] && unreclaimed=0
+    echo "$(date +%s) $free $unreclaimed" > "$PENDING"
+    notes+=("古い動画を${n}本（$((freed / 1024 / 1024))GB分）消しました。空きは $((free / 1024 / 1024))GB です（記録: $STATE/cleanup.log）")
+  fi
+  [ "$free" -lt "$want_kb" ] && [ $((start_kb + pending + freed)) -lt "$want_kb" ] && \
+    alerts+=("古い動画を消しても空きが $((free / 1024 / 1024))GB しかありません（${CLEANUP_MIN_AGE_DAYS}日以内の動画と開いている動画は残しています）")
 }
 
 cleanup_videos
