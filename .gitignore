@@ -1,6 +1,1 @@
-__pycache__/
-*.pyc
-.venv/
-.pytest_cache/
-config.toml
-x_bearer_token
+.DS_Store

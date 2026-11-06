@@ -9,7 +9,7 @@ alerts=()
 free_gb=$(df -g / | awk 'NR==2 {print $4}')
 [ "${free_gb:-0}" -lt "$MIN_FREE_GB" ] && alerts+=("空き容量が ${free_gb}GB です")
 
-for label in com.pingpong-editor.app com.xdigest.serve; do
+for label in com.pingpong-editor.app; do
   if [ -f "$HOME/Library/LaunchAgents/$label.plist" ] && \
      ! launchctl print "gui/$(id -u)/$label" 2>/dev/null | grep -q "state = running"; then
     alerts+=("$label が動いていません")
