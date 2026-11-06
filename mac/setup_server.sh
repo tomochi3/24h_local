@@ -3,6 +3,7 @@
 # 何度実行しても同じ結果になります。途中で管理者パスワードを聞かれます。
 #   bash mac/setup_server.sh                # 電源設定・容量監視
 #   NTFY_TOPIC=xxxx bash mac/setup_server.sh  # 容量が減ったらスマホに通知
+#   LID_CLOSED=0 bash mac/setup_server.sh     # ふたを閉じたら普通にスリープする設定に戻す
 set -euo pipefail
 [ "$(uname)" = "Darwin" ] || { echo "macOS で実行してください"; exit 1; }
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
@@ -12,6 +13,18 @@ sudo pmset -c sleep 0 disksleep 0 displaysleep 10 powernap 0 womp 1 tcpkeepalive
 sudo pmset -a autorestart 1 2>/dev/null || echo "  (この機種は autorestart 非対応)"
 sudo systemsetup -setrestartfreeze on >/dev/null 2>&1 || true
 pmset -g custom | sed -n '/AC Power/,$p' | head -20
+
+echo "== 1b. ふたを閉めたままでも動かす（外部ディスプレイなし） =="
+LID_CLOSED="${LID_CLOSED:-1}"
+if [ "$LID_CLOSED" = 1 ]; then
+  # ふたを閉じてもスリープしない（停電でバッテリー駆動になっても動き続け、切れたら autorestart で復帰）
+  sudo pmset -a disablesleep 1
+  echo "  ふたを閉じてもスリープしません（画面はふたを閉じると消えます）"
+else
+  sudo pmset -a disablesleep 0
+  echo "  ふたを閉じたら通常どおりスリープします"
+fi
+pmset -g | grep -i SleepDisabled || true
 
 echo "== 2. 自動アップデートでの勝手な再起動を防ぐ（セキュリティ更新のダウンロードは継続） =="
 sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates -bool false
@@ -32,7 +45,10 @@ cat > "$PLIST" <<PL
 <plist version="1.0"><dict>
   <key>Label</key><string>com.macserver.healthcheck</string>
   <key>ProgramArguments</key><array><string>/bin/bash</string><string>$REPO/mac/healthcheck.sh</string></array>
-  <key>EnvironmentVariables</key><dict><key>NTFY_TOPIC</key><string>${NTFY_TOPIC:-}</string></dict>
+  <key>EnvironmentVariables</key><dict>
+    <key>NTFY_TOPIC</key><string>${NTFY_TOPIC:-}</string>
+    <key>LID_CLOSED</key><string>$LID_CLOSED</string>
+  </dict>
   <key>StartInterval</key><integer>3600</integer>
   <key>RunAtLoad</key><true/>
   <key>StandardOutPath</key><string>$HOME/.local/share/macserver/healthcheck.log</string>
@@ -49,6 +65,7 @@ cat <<'MSG'
  - システム設定 → バッテリー → 「バッテリー充電の最適化」をオン（常時充電による膨張対策）
  - システム設定 → ユーザとグループ → 自動ログイン（FileVault オンだと選べません。
    その場合は停電・再起動のあとに一度ログインが必要です）
- - ふたは開けたまま、風通しのよい場所に。画面はロック・消灯して大丈夫です
+ - ふたを閉めて置く場合: 布団・クッションの上や棚の奥は避け、硬い面の上か縦置きスタンドで。
+   ふたを閉めるとキーボード面から放熱できず熱がこもりやすいので、最初の数日は ntfy の温度通知に注意
  - Tailscale にログインし、スマホにも同じアカウントで Tailscale を入れる
 MSG

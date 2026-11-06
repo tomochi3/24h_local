@@ -16,6 +16,11 @@ for label in com.pingpong-editor.app; do
   fi
 done
 
+# ふた閉め運用なのに macOS アップデート等で disablesleep が戻っていたら、閉じた瞬間にスリープしてしまう
+if [ "${LID_CLOSED:-0}" = 1 ] && ! pmset -g | grep -Eq 'SleepDisabled[[:space:]]+1'; then
+  alerts+=("ふた閉め設定が外れています（sudo pmset -a disablesleep 1）")
+fi
+
 temp=$(ioreg -r -n AppleSmartBattery 2>/dev/null | awk -F'= ' '/"Temperature" =/ {print int($2/100); exit}')
 [ -n "$temp" ] && [ "$temp" -ge 45 ] && alerts+=("バッテリー温度が ${temp}℃ です")
 
