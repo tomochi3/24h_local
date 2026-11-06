@@ -27,130 +27,180 @@ iPhone ──Tailscale(VPN)──▶ MacBook（ふた閉めOK・電源つなぎ�
 
 ## 0. 全体の順番
 
-1. 下の「**0-1. 初期セットアップ**」で macOS 更新・Homebrew・Python（pip）を入れる
-2. ai_edit_TT の README「**初期化したMacBookを自宅サーバーにする**」の手順3〜5を実行
-   （ffmpeg・gh・Tailscale・Codex・Claude のインストールとログインまで。手順1・2は0-1と同じなので済んでいればとばしてOK）
-3. このリポジトリで「Mac本体の常時稼働設定」（下の1）
-4. ai_edit_TT の `install-service`（下の2、ai_edit_TT README の手順6）
+この MacBook は **Intel・macOS 12 Monterey（13 未満）** の前提です。この組み合わせでは Homebrew も Claude Code も使えないので、
+ai_edit_TT の README の手順1〜4（Homebrew 前提）は使わず、下の「0-1」で全部入れます。
 
-## 0-1. 初期セットアップ（2018年 Intel Mac で Python・pip を使えるようにする）
+1. 下の「**0-1. 初期セットアップ**」（Python・pip・ffmpeg・gh・Codex・Tailscale・ai_edit_TT の取得まで）
+2. このリポジトリで「Mac本体の常時稼働設定」（下の1）
+3. ai_edit_TT の動作確認と `install-service`（下の2、ai_edit_TT README の手順6）
 
-Mac の「ターミナル」（アプリケーション → ユーティリティ）で、上から順に1つずつ実行してください。
-コマンドは1ブロックずつコピーして貼り付け、終わってから次へ進みます。
+## 0-1. 初期セットアップ（Intel・macOS 12 で Homebrew を使わない）
 
-### ① macOS を更新する
+### なぜ Homebrew を使わないか（調べた結果）
 
-アップルメニュー → システム設定 → 一般 → ソフトウェアアップデート で、出てくる最新版まで上げます。
-2018年モデルで入れられる最新は **MacBook Pro なら macOS 15 Sequoia、MacBook Air なら macOS 14 Sonoma** です。
-（Tailscale は macOS 13 以降が必要です）
+| ソフト | Intel・macOS 12 で | 根拠 |
+|---|---|---|
+| Homebrew | **実質使えない**。7.0（2026年9月）で Intel は Tier 3 になり、Intel 用のビルド済みパッケージが作られなくなった（全部ソースからビルド＝何時間もかかり失敗しやすい）。2027年9月以降は Intel で動かなくなる予定 | [Homebrew 7.0.0](https://brew.sh/2026/09/13/homebrew-7.0.0/)、[Support Tiers](https://docs.brew.sh/Support-Tiers) |
+| Claude Code | **使えない**。macOS 13.0 以上 | [公式 System requirements](https://code.claude.com/docs/en/setup) |
+| Codex CLI | 使える。公式は macOS 12 以上（Intel 版バイナリの最低 OS は 10.12） | [openai/codex docs/install.md](https://github.com/openai/codex/blob/main/docs/install.md) |
+| Python | python.org の 3.12 インストーラーは macOS 10.13 以上 | CPython 3.12 の `Mac/BuildScript/resources/ReadMe.rtf` |
+| GitHub CLI (gh) | 最新版（2.101 以降、Go 1.27）は macOS 13 以上。**2.100.0 までは macOS 12 で動く**（バイナリの最低 OS 12.0 を確認） | [Go 1.26 リリースノート](https://go.dev/doc/go1.26#darwin) |
+| Tailscale | macOS 12.0 以上 | [Tailscale macOS](https://tailscale.com/docs/install/mac) |
+| opencv-python-headless | 4.11 以降は macOS 13 以上用しかない。**macOS 12 で使えるのは 4.10.0.84 まで** | PyPI の wheel（`macosx_12_0_x86_64` は 4.10.0.84 が最後） |
+| numpy | 最新版でも macOS 10.13 以上用の Intel 版あり | PyPI の wheel |
 
-確認:
+AI 判定は **Codex（ChatGPT の月額プラン）だけ**で動かします（ai_edit_TT は Codex か Claude の片方で動きます）。
+
+Mac の「ターミナル」（アプリケーション → ユーティリティ）で、上から順に1ブロックずつ実行してください。
+
+### ① macOS のバージョンを確認する
 
 ```bash
-sw_vers -productVersion   # 13 以上なら OK
-uname -m                  # x86_64 と出れば Intel Mac
+sw_vers -productVersion   # 12.x なら OK
+uname -m                  # x86_64 なら Intel Mac
 ```
 
-### ② Apple のコマンドラインツールを入れる
+11 以下だと Tailscale と Codex が動かないので、システム環境設定 → ソフトウェアアップデート で 12 以上に上げてください。
+
+### ② Apple のコマンドラインツール（git もここに入る）
 
 ```bash
 xcode-select --install
 ```
 
-ダイアログで「インストール」を押して完了まで待ちます（数分〜20分）。「すでにインストールされています」と出たら次へ。Xcode 本体は不要です。
-
-### ③ Homebrew を入れる
+ダイアログで「インストール」を押して完了まで待ちます。「すでにインストールされています」と出たら次へ。
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+git --version
 ```
 
-途中で Mac のログインパスワード（入力しても画面には出ません）と Return キーを求められます。
-終わったら、Intel Mac 用のパス設定をします（Intel Mac の Homebrew は `/usr/local` に入ります。`/opt/homebrew` は Apple シリコン用なので使いません）。
+### ③ 自分用のコマンド置き場を作る
+
+gh・Codex・ffmpeg はここ（`~/.local/bin`）に置きます。sudo は不要です。
 
 ```bash
-eval "$(/usr/local/bin/brew shellenv)"
+mkdir -p "$HOME/.local/bin"
+grep -qxF 'export PATH="$HOME/.local/bin:$PATH"' ~/.zprofile 2>/dev/null || echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zprofile
+export PATH="$HOME/.local/bin:$PATH"
 ```
+
+### ④ Python 3.12 を python.org から入れる
+
+1. ブラウザで <https://www.python.org/downloads/macos/> を開く
+2. **Python 3.12.x** の「**macOS 64-bit universal2 installer**」（.pkg）をダウンロードして、ダブルクリックでインストール
+   （3.12 系でインストーラーがある一番新しいものを選ぶ。3.13 以降でも動くはずですが、ai_edit_TT は 3.12 で作られています）
+3. インストール後に開く Finder で **Install Certificates.command** をダブルクリック（pip の SSL エラー対策）。
+   閉じてしまった場合は次のコマンドで同じことができます
 
 ```bash
-grep -qxF 'eval "$(/usr/local/bin/brew shellenv)"' ~/.zprofile 2>/dev/null || echo 'eval "$(/usr/local/bin/brew shellenv)"' >> ~/.zprofile
+"/Applications/Python 3.12/Install Certificates.command"
 ```
+
+確認:
 
 ```bash
-brew --version
+/Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12 --version   # Python 3.12.x
 ```
 
-### ④ Python 3.12 を入れる
+### ⑤ pip は venv（仮想環境）の中で、ビルド済みだけを入れる
+
+pip を使うときの決まりは2つです。
+
+- **アプリのフォルダごとに `.venv` を作り、`.venv/bin/python -m pip ...` で入れる**（`sudo pip` はしない）
+- **`--only-binary=:all:` を付ける**。付けないと、macOS 12 用がない新しい opencv（ソースのみ）を拾って何時間もビルドし、失敗します。付けると pip が macOS 12 で使える版（opencv 4.10.0.84）を自動で選びます
+
+動作確認（あとで消してOK）:
 
 ```bash
-brew install python@3.12
-```
-
-> Intel Mac は Homebrew のサポートが一段下がっていて（Tier 3）、ビルド済みのパッケージがないとソースからのビルドになり、**30分以上かかる・失敗する**ことがあります。
-> 失敗したら、代わりに [python.org の macOS 用インストーラー](https://www.python.org/downloads/macos/)（Python 3.12 の「macOS 64-bit universal2 installer」）を入れてください。
-> その場合は、インストール後に Finder で アプリケーション → Python 3.12 → **Install Certificates.command** をダブルクリックし（pip の SSL エラー対策）、以下の `PY=` を次の行に読み替えます。
-> `PY=/Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12`
-
-使う Python の場所を確認します。
-
-```bash
-PY="$(brew --prefix python@3.12)/bin/python3.12"
-"$PY" --version   # Python 3.12.x と出れば OK
-```
-
-### ⑤ pip は「venv（仮想環境）」の中で使う
-
-Homebrew の Python に直接 `pip install` すると、次のエラーで止まります。**これは正常な動作**です。
-
-```
-error: externally-managed-environment
-```
-
-`sudo pip` や `--break-system-packages` で無理に入れると、Homebrew の Python が壊れて後で困るので使いません。
-代わりにアプリのフォルダごとに venv を作り、その中の pip を使います（ai_edit_TT の `.venv` もこの方式です）。
-
-```bash
-mkdir -p "$HOME/Apps/pytest-venv" && cd "$HOME/Apps/pytest-venv"
-```
-
-```bash
-"$PY" -m venv .venv
-```
-
-```bash
+mkdir -p "$HOME/Apps/piptest" && cd "$HOME/Apps/piptest"
+/Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install --only-binary=:all: numpy opencv-python-headless
+.venv/bin/python -c "import numpy, cv2, platform; print('OK', numpy.__version__, cv2.__version__, platform.machine())"
+```
+
+`OK 2.x.x 4.10.0 x86_64` のように出れば pip は使える状態です。`rm -rf "$HOME/Apps/piptest"` で消せます。
+
+### ⑥ ffmpeg（スコア表示用の `ass` 入り）
+
+Homebrew の代わりに、Intel Mac 用の静的ビルド [evermeet.cx/ffmpeg](https://evermeet.cx/ffmpeg/) を使います（macOS 10.9 以上）。
+
+1. ページから **ffmpeg** と **ffprobe** の zip（release 版）を両方ダウンロード
+2. ダウンロードフォルダで両方を展開してから、次を実行
+
+```bash
+mv ~/Downloads/ffmpeg ~/Downloads/ffprobe "$HOME/.local/bin/"
+xattr -d com.apple.quarantine "$HOME/.local/bin/ffmpeg" "$HOME/.local/bin/ffprobe" 2>/dev/null
+chmod +x "$HOME/.local/bin/ffmpeg" "$HOME/.local/bin/ffprobe"
+ffmpeg -version | head -1
+ffmpeg -hide_banner -filters 2>/dev/null | grep -w ass
+```
+
+最後の行で `ass` の行が出れば OK です（evermeet 版に libass が入っていることはこの README を書いた時点では確認できていません。出なかったら知らせてください）。
+
+### ⑦ GitHub CLI（gh 2.100.0。macOS 12 で動く最後の版）
+
+```bash
+cd /tmp && curl -fL -o gh.zip https://github.com/cli/cli/releases/download/v2.100.0/gh_2.100.0_macOS_amd64.zip
+unzip -o -q gh.zip && mv gh_2.100.0_macOS_amd64/bin/gh "$HOME/.local/bin/" && rm -rf gh.zip gh_2.100.0_macOS_amd64
+gh --version
 ```
 
 ```bash
-.venv/bin/python -m pip install numpy
-.venv/bin/python -c "import numpy, platform; print('OK', numpy.__version__, platform.machine())"
+gh auth login --hostname github.com --git-protocol https --web
+gh auth setup-git
 ```
 
-`OK 2.x.x x86_64` のように出れば、pip が使える状態です。確認用フォルダは消して構いません: `rm -rf "$HOME/Apps/pytest-venv"`
+`brew` や `gh upgrade` で新しい版に上げると macOS 13 以上が必要になって動かなくなるので、上げないでください。
 
-ポイント:
+### ⑧ Codex CLI
 
-- `pip` ではなく **`.venv/bin/python -m pip ...`** と書くと、どの Python に入るか迷いません（`pip: command not found` も起きません）
-- いちいち `.venv/bin/` を付けたくないときは `source .venv/bin/activate`（やめるときは `deactivate`）
-- macOS 標準の `/usr/bin/python3`（3.9）は古いので使いません。`which python3` が `/usr/bin/python3` を指していても、上のように `$PY` やフルパスで指定していれば問題ありません
+GitHub の公式リリースから Intel Mac 用を入れます。
 
-### ⑥ うまくいかないとき
+```bash
+cd /tmp && curl -fL -o codex.tgz https://github.com/openai/codex/releases/latest/download/codex-x86_64-apple-darwin.tar.gz
+tar xzf codex.tgz && mv codex-x86_64-apple-darwin "$HOME/.local/bin/codex" && rm codex.tgz
+codex --version
+codex login
+codex login status
+```
+
+ChatGPT の月額プランのアカウントでログインします。Codex を新しくするときは、このブロックをもう一度実行します。
+
+### ⑨ Tailscale
+
+<https://tailscale.com/download> から macOS 版（Standalone）をダウンロードしてインストールし、開いてログインと VPN の許可をします。
+スマホにも Tailscale を入れ、同じアカウントでログインしてください。
+
+### ⑩ ai_edit_TT を取得して、Python の部品を入れる
+
+ai_edit_TT README の手順4の代わりに、次を使います（Homebrew の Python の代わりに python.org の Python、pip に `--only-binary=:all:`）。
+
+```bash
+mkdir -p "$HOME/Apps" "$HOME/卓球動画"
+git clone https://github.com/tomochi3/ai_edit_TT.git "$HOME/Apps/ai_edit_TT"
+cd "$HOME/Apps/ai_edit_TT"
+/Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install --only-binary=:all: -r requirements.txt
+```
+
+### ⑪ うまくいかないとき
 
 | 症状 | 対処 |
 |---|---|
-| `externally-managed-environment` | ⑤のとおり venv の中の pip を使う |
-| `pip: command not found` / `pip3` が古い Python に入る | `.venv/bin/python -m pip` の形で実行する |
-| `SSL: CERTIFICATE_VERIFY_FAILED` | python.org 版なら `Install Certificates.command` を実行。Homebrew 版なら `brew reinstall ca-certificates python@3.12` |
-| `Building wheel for ...` が延々と続く・`clang` のエラー | ビルド済み（Intel 用 wheel）がない版を拾っている。まず `.venv/bin/python -m pip install --upgrade pip` してから再実行。それでもだめなら `xcode-select --install` 済みか確認 |
-| `No matching distribution found`（例: 新しい PyTorch） | そのライブラリが Intel Mac 向けの配布をやめている。古い版を指定するか、Linux/クラウド側で動かす |
-| `brew install` が途中で失敗 | ④の python.org インストーラーに切り替える |
-| 新しいターミナルで `brew: command not found` | ③の `~/.zprofile` への追記をやり直し、ターミナルを開き直す |
+| pip で `Building wheel for opencv...` が延々続く | `--only-binary=:all:` を付け忘れている。付けて入れ直す |
+| `No matching distribution found` | そのライブラリに macOS 12・Intel 用のビルド済みがない。`--only-binary=:all:` のまま古い版を指定（例: `"opencv-python-headless<4.11"`） |
+| `SSL: CERTIFICATE_VERIFY_FAILED` | ④の Install Certificates.command を実行 |
+| `pip: command not found` | `pip` ではなく `.venv/bin/python -m pip` と書く |
+| ffmpeg/gh/codex が「開発元を検証できない」で開けない | `xattr -d com.apple.quarantine "$HOME/.local/bin/<名前>"` |
+| 新しいターミナルで `gh`・`codex`・`ffmpeg` が見つからない | ③の `~/.zprofile` 追記をやり直し、ターミナルを開き直す |
 
 ## 1. Mac本体の常時稼働設定
 
 ```bash
 mkdir -p "$HOME/Apps" && cd "$HOME/Apps"
-gh repo clone tomochi3/24h
+gh repo clone tomochi3/24h_local 24h
 cd 24h
 NTFY_TOPIC=ここに推測されにくいトピック名 bash mac/setup_server.sh
 ```
@@ -166,10 +216,10 @@ NTFY_TOPIC=ここに推測されにくいトピック名 bash mac/setup_server.s
 
 手動でやること（スクリプトの最後にも表示されます）:
 
-- **バッテリー**: 「バッテリー充電の最適化」をオン。電源つなぎっぱなしは膨張しやすいので、ときどき底面のふくらみを確認してください
+- **バッテリー**: システム環境設定 → バッテリー → バッテリー → 「バッテリー充電の最適化」をオン。電源つなぎっぱなしは膨張しやすいので、ときどき底面のふくらみを確認してください
 - **ふたは閉めてOK**。ただしふたを閉めるとキーボード面から放熱できないので、硬い面の上か縦置きスタンドで、布やクッションの上は避けてください。動画のAI処理中は特に熱くなるので、最初の数日は温度通知に注意
 - ふたを閉めた状態で停電すると、バッテリーで動き続け、切れたら電源復帰時に自動起動します
-- **自動ログイン**: launchd の LaunchAgent はログイン後に動きます。FileVault がオンだと自動ログインできないので、停電・再起動のあとは一度ログインが必要です（Tailscale も同様）
+- **自動ログイン**: システム環境設定 → ユーザとグループ → ログインオプション → 自動ログイン。launchd の LaunchAgent はログイン後に動きます。FileVault がオンだと自動ログインできないので、停電・再起動のあとは一度ログインが必要です（Tailscale も同様）
 - スマホの ntfy アプリで `NTFY_TOPIC` と同じトピックを購読
 
 ## 2. 卓球動画編集サーバー（ai_edit_TT）
@@ -185,4 +235,5 @@ cd "$HOME/Apps/ai_edit_TT"
 
 - ポートは 8765
 - 256GBは動画ですぐ埋まります。healthcheck が20GBを切ったら通知するので、古い元動画を消すか外付けSSDに移してください
+- `install-service` は登録したときの PATH を引き継ぐので、`which ffmpeg ffprobe codex` が全部表示されるターミナルで実行してください（Claude は使えないので Codex だけで判定します）
 - 状態確認: `launchctl print "gui/$(id -u)/com.pingpong-editor.app"`、ログ: `tail -f ~/卓球動画/server.log`
