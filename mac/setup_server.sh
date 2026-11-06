@@ -4,6 +4,7 @@
 #   bash mac/setup_server.sh                # 電源設定・容量監視
 #   NTFY_TOPIC=xxxx bash mac/setup_server.sh  # 容量が減ったらスマホに通知
 #   LID_CLOSED=0 bash mac/setup_server.sh     # ふたを閉じたら普通にスリープする設定に戻す
+#   CLEANUP=0 NTFY_TOPIC=xxxx bash mac/setup_server.sh  # 古い動画の自動削除をしない
 set -euo pipefail
 [ "$(uname)" = "Darwin" ] || { echo "macOS で実行してください"; exit 1; }
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
@@ -36,7 +37,7 @@ else
   echo "  自動で有効にできませんでした。システム環境設定 → 共有 → リモートログイン をオンにしてください（macOS 13 以降は システム設定 → 一般 → 共有）"
 fi
 
-echo "== 4. 容量・稼働監視（1時間ごと） =="
+echo "== 4. 容量・稼働監視と古い動画の自動削除（1時間ごと） =="
 mkdir -p "$HOME/Library/LaunchAgents" "$HOME/.local/share/macserver"
 PLIST="$HOME/Library/LaunchAgents/com.macserver.healthcheck.plist"
 cat > "$PLIST" <<PL
@@ -48,6 +49,11 @@ cat > "$PLIST" <<PL
   <key>EnvironmentVariables</key><dict>
     <key>NTFY_TOPIC</key><string>${NTFY_TOPIC:-}</string>
     <key>LID_CLOSED</key><string>$LID_CLOSED</string>
+    <key>VIDEO_DIR</key><string>${VIDEO_DIR:-$HOME/卓球動画}</string>
+    <key>CLEANUP</key><string>${CLEANUP:-1}</string>
+    <key>CLEANUP_FREE_GB</key><string>${CLEANUP_FREE_GB:-30}</string>
+    <key>CLEANUP_TARGET_GB</key><string>${CLEANUP_TARGET_GB:-50}</string>
+    <key>CLEANUP_MIN_AGE_DAYS</key><string>${CLEANUP_MIN_AGE_DAYS:-3}</string>
   </dict>
   <key>StartInterval</key><integer>3600</integer>
   <key>RunAtLoad</key><true/>
