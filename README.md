@@ -45,7 +45,7 @@ ai_edit_TT の README の手順1〜4（Homebrew 前提）は使わず、下の�
 | Codex CLI | 使える。公式は macOS 12 以上（Intel 版バイナリの最低 OS は 10.12） | [openai/codex docs/install.md](https://github.com/openai/codex/blob/main/docs/install.md) |
 | Python | python.org の 3.12 インストーラーは macOS 10.13 以上 | CPython 3.12 の `Mac/BuildScript/resources/ReadMe.rtf` |
 | GitHub CLI (gh) | 最新版（2.101 以降、Go 1.27）は macOS 13 以上。**2.100.0 までは macOS 12 で動く**（バイナリの最低 OS 12.0 を確認） | [Go 1.26 リリースノート](https://go.dev/doc/go1.26#darwin) |
-| Tailscale | macOS 12.0 以上 | [Tailscale macOS](https://tailscale.com/docs/install/mac) |
+| Tailscale | 最新版（1.104 以降、Go 1.27）は **macOS 13 以上**。**1.102.x までは macOS 12 で動く**（1.102.5 は Go 1.26 でビルド） | [Tailscale changelog](https://tailscale.com/changelog)、[Tailscale macOS](https://tailscale.com/docs/install/mac) |
 | opencv-python-headless | 4.11 以降は macOS 13 以上用しかない。**macOS 12 で使えるのは 4.10.0.84 まで** | PyPI の wheel（`macosx_12_0_x86_64` は 4.10.0.84 が最後） |
 | numpy | 最新版でも macOS 10.13 以上用の Intel 版あり | PyPI の wheel |
 
@@ -169,8 +169,23 @@ ChatGPT の月額プランのアカウントでログインします。Codex を
 
 ### ⑨ Tailscale
 
-<https://tailscale.com/download> から macOS 版（Standalone）をダウンロードしてインストールし、開いてログインと VPN の許可をします。
-スマホにも Tailscale を入れ、同じアカウントでログインしてください。
+公式サイトの「Download」や App Store から入る最新版は **macOS 13 以上専用**なので、macOS 12 では入りません（「このバージョンの macOS では使えません」と出る）。
+macOS 12 で動く最後の版 **1.102.5** の Standalone 版を、バージョンを指定してダウンロードします。
+
+```bash
+cd /tmp && curl -fL -o Tailscale.pkg https://pkgs.tailscale.com/stable/Tailscale-1.102.5-macos.pkg
+sudo installer -pkg Tailscale.pkg -target /
+rm Tailscale.pkg
+```
+
+（`curl` が 404 で失敗したら、ブラウザで <https://pkgs.tailscale.com/stable/#macos> を開き、`Tailscale-1.102.x-macos.pkg` のうち一番新しいものをダウンロードしてダブルクリックで入れてください。1.104 以降は入りません。）
+
+アプリケーションフォルダの Tailscale を開き、ログインと VPN（システム拡張）の許可をします。
+「システム拡張がブロックされました」と出たら、システム環境設定 → セキュリティとプライバシー → 一般 で「許可」を押します。
+
+Tailscale のメニュー（メニューバーのアイコン）→ Settings で **自動アップデートはオフ**にしておきます（macOS 12 のままでは新しい版は動かないため）。
+
+スマホにも Tailscale を入れ、同じアカウントでログインしてください（スマホ側は最新版で問題ありません）。
 
 ### ⑩ ai_edit_TT を取得して、Python の部品を入れる
 
@@ -195,6 +210,7 @@ cd "$HOME/Apps/ai_edit_TT"
 | `pip: command not found` | `pip` ではなく `.venv/bin/python -m pip` と書く |
 | ffmpeg/gh/codex が「開発元を検証できない」で開けない | `xattr -d com.apple.quarantine "$HOME/.local/bin/<名前>"` |
 | 新しいターミナルで `gh`・`codex`・`ffmpeg` が見つからない | ③の `~/.zprofile` 追記をやり直し、ターミナルを開き直す |
+| Tailscale が「この Mac では使えない」「macOS 13 以降が必要」で入らない | 最新版（1.104 以降）を入れようとしている。⑨の手順で 1.102.5 を入れる |
 
 ## 1. Mac本体の常時稼働設定
 
